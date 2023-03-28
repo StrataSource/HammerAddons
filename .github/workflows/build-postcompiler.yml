@@ -1,15 +1,10 @@
 name: Build Postcompiler
 on:
-  schedule:
-    - cron: '14 9 * * TUE' # Run at 9:14 (7:14pm local) on Tuesday
-  create:
-    ref_type: 'tag'
   workflow_dispatch:
-    # Allow triggering manually whenever it's useful.
-
-permissions:
-  contents: read
-  pull-requests: read
+    inputs:
+      version:
+        description: 'Release version'
+        required: true
 
 jobs:
   freeze:
@@ -17,19 +12,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # We want 3.8 because it works on Windows 7.
-          - artifact-name: 'win32'
-            python-version: '3.8.10'
-            arch: 'x86'
-            os: 'windows-latest'
           - artifact-name: 'win64'
             python-version: '3.11'
             arch: 'x64'
             os: 'windows-latest'
-          - artifact-name: 'linux64'
-            python-version: '3.11'
-            arch: 'x64'
-            os: 'ubuntu-latest'
+#          - artifact-name: 'linux64'
+#            python-version: '3.11'
+#            arch: 'x64'
+#            os: 'ubuntu-latest'
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -48,17 +38,31 @@ jobs:
       - name: Freeze application
         run: python -m PyInstaller --distpath ../build/ -y ../postcompiler.spec
         working-directory: ./src/
+      - name: Zip hammeraddons_${{ matrix.artifact-name }}
+        uses: thedoctor0/zip-release@master
+        with:
+          type: 'zip'
+          directory: ./build/
+          filename: 'hammeraddons_${{ matrix.artifact-name }}.zip'
       - name: Artifact upload (tag)
         uses: actions/upload-artifact@v3
         if: github.event_name == 'create'
         with:
-          name: hammeraddons_${{ github.event.ref }}_${{ matrix.artifact-name }}
-          path: ./build/
+          name: hammeraddons_${{ github.event.inputs.version }}_${{ matrix.artifact-name }}
+          path: ./build/hammeraddons_${{ matrix.artifact-name }}.zip
           if-no-files-found: error
       - name: Artifact upload (hash)
         uses: actions/upload-artifact@v3
         if: github.event_name != 'create'
         with:
-          name: hammeraddons_${{ github.sha }}_${{ matrix.artifact-name }}
-          path: ./build/
+          name: hammeraddons_${{ github.event.inputs.version }}_${{ matrix.artifact-name }}
+          path: ./build/hammeraddons_${{ matrix.artifact-name }}.zip
           if-no-files-found: error
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          files: |
+            ./build/hammeraddons_${{ matrix.artifact-name }}.zip
+          fail_on_unmatched_files: true
