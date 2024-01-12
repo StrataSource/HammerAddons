@@ -30,6 +30,7 @@ LOGGER = logger.get_logger(__name__)
 ModelKey = TypeVar('ModelKey', bound=Hashable)
 InT = TypeVar('InT')
 OutT = TypeVar('OutT')
+force_regen = False  # If set, force every model to be regenerated.
 
 
 class GenModel(Generic[OutT]):
@@ -100,6 +101,10 @@ class ModelCompiler(Generic[ModelKey, InT, OutT]):
         """Load the previously compiled models and prepare for compiles."""
         # Ensure the folder exists.
         os.makedirs(self.model_folder_abs, exist_ok=True)
+
+        if force_regen:
+            return self  # Skip loading.
+
         data: List[Tuple[ModelKey, str, OutT]]
         version = 0
         try:
@@ -119,6 +124,7 @@ class ModelCompiler(Generic[ModelKey, InT, OutT]):
                 exc_info=True,
             )
             return self
+
         if version != self.version:
             # Different version, ignore the data.
             return self
@@ -234,7 +240,7 @@ class ModelCompiler(Generic[ModelKey, InT, OutT]):
                 break
 
         # If compile dir is specified, create the folder/clear it, but don't delete once done.
-        ctx_man: ContextManager[Union[str, bytes, Path]]
+        ctx_man: ContextManager[Union[str, Path]]
         if self.compile_dir is not None:
             path = Path(self.compile_dir, mdl_name)
             ctx_man = contextlib.nullcontext(path)
