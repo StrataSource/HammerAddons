@@ -108,14 +108,19 @@ def parse(map_path: Path, game_folder: Optional[str]='') -> Config:
     if not map_path.suffix:
         map_path /= 'unused'
 
-    for folder in map_path.parents:
-        conf_path = folder / CONF_NAME
+    # Strata HACK: We always want to load srctools config from the directory below gameinfo, then if that doesn't exist, check bin/win64/../../srctools.vdf
+    conf_path_options = []
+    if game_folder is not None and len(game_folder) > 0:
+        conf_path_options.append(Path(game_folder).parent / CONF_NAME)
+    conf_path_options.append(Path(sys.argv[0]).parent.parent.parent / CONF_NAME)
+    for conf_path in conf_path_options:
         if conf_path.exists():
             LOGGER.info('Config path: "{}"', conf_path.absolute())
             with open(conf_path, encoding='utf8') as f:
                 kv = Keyvalues.parse(f, conf_path)
             opts.path = conf_path
             opts.load(kv)
+            folder = conf_path.parent
             break
     else:
         LOGGER.warning('Cannot find a valid config file!')
@@ -123,12 +128,12 @@ def parse(map_path: Path, game_folder: Optional[str]='') -> Config:
         opts.load(Keyvalues(None, []))
 
         # Try to write out a default file in the game folder.
-        for folder in map_path.parents:
+        for folder in conf_path_options[0].parents:
             if folder.parent.stem in ('common', 'sourcemods'):
                 break
         else:
             # Give up, put next to the input path.
-            folder = map_path.parent
+            folder = conf_path_options[0].parent
         opts.path = folder / CONF_NAME
 
         LOGGER.warning('Writing default to "{}"', opts.path)
